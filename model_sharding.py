@@ -63,7 +63,7 @@ class Net(nn.Module):
 
         x = self.linear_layers(x)
 
-        return torch.sigmoid(x)
+        return x
 
 datadir = './data'
 if os.path.exists(datadir) == False:
