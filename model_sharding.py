@@ -18,6 +18,7 @@ class Net(nn.Module):
         self.conv_depth = 32
         self.hidden_dim = 1024
 
+        # Add 3 conv layers
         self.conv_layers = nn.Sequential(
                 nn.Conv2d(self.input_depth,
                               self.conv_depth,
@@ -45,19 +46,25 @@ class Net(nn.Module):
 
         self.cur_size = self.size // 4
         self.cur_depth = self.conv_depth * 4
+
+        # Add 2 linear layers
         self.linear_layers = nn.Sequential(
                 nn.Linear(self.cur_size * self.cur_size * self.cur_depth, self.hidden_dim),
                 nn.ReLU(),
                 nn.Linear(self.hidden_dim, 10)
         )
 
+        # Conv layers live on GPU 0
         self.conv_layers.to('cuda:0')
+
+        # Linear layers live on GPU 1
         self.linear_layers.to('cuda:1')
 
     def forward(self, x):
         x = self.conv_layers(x)
         x = F.relu(x)
 
+        # Move to GPU 1 since the linear layers are on GPU 1
         x = x.to('cuda:1')
         x = x.view(-1, self.cur_size * self.cur_size * self.cur_depth)
 
@@ -73,6 +80,7 @@ size = 28
 input_depth = 1
 batch_size = 1024
 
+# Training dataset
 training_dataset = datasets.MNIST(
             root=datadir,
             train=True,
@@ -80,11 +88,13 @@ training_dataset = datasets.MNIST(
             transform = transforms.Compose([
                 transforms.ToTensor(),
             ]))
+
 trainloader = data.DataLoader(
                 training_dataset,
                 batch_size=batch_size,
                 shuffle=True)
 
+# Test dataset
 test_dataset = datasets.MNIST(
             root=datadir,
             train=True,
@@ -96,6 +106,7 @@ testloader = data.DataLoader(
                 test_dataset,
                 batch_size=batch_size,
                 shuffle=True)
+
 net = Net(size, input_depth)
 optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
 loss_fn = nn.CrossEntropyLoss()
@@ -104,8 +115,13 @@ num_epochs = 10
 for i in range(num_epochs):
     net.train()
     for j, (inputs, labels) in enumerate(trainloader):
-        
+
+        # Move inputs to GPU 0 since the conv layer is on
+        # GPU 0
         inputs = inputs.to('cuda:0')
+
+        # Move the labels to GPU 1 since the output of the
+        # linear layers is on GPU 1
         labels = labels.to('cuda:1')
 
         optimizer.zero_grad()
